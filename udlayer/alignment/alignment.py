@@ -1,9 +1,9 @@
 import math
-from layer.gridlayer import GridLayer
-from layer.graphlayer import GraphLayer
-from layer.pointlayer import PointLayer
-from layer.linestringlayer import LineStringLayer
-from layer.polygonlayer import PolygonLayer
+from ..layer.gridlayer import GridLayer
+from ..layer.graphlayer import GraphLayer
+from ..layer.pointlayer import PointLayer
+from ..layer.linestringlayer import LineStringLayer
+from ..layer.polygonlayer import PolygonLayer
 import numpy as np
 
 

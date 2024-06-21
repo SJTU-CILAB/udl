@@ -27,6 +27,8 @@ print(polygonlayer.data)
 
 # Example: Transform a tiff file to a grid layer data
 from udlayer.transformation.transformation import *
+from udlayer.alignment.alignment import *
+from udlayer.utils.utility import *
 
 griddata = tif_to_grid("pm2.5", ["Shanghai_pm2.5.tif"], start_lat=30.975, start_lon=121.1, end_lat=31.514, end_lon=121.804, year=2014)
 print(griddata.data)

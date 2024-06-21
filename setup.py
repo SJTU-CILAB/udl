@@ -32,7 +32,7 @@ setup(
         "pandas",
         "networkx",
         "pyproj",
-        "pyshp",
+        "pyshp"
         "shapely",
         "fiona",
         "geopandas",

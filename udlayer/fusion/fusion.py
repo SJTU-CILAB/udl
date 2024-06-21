@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 from typing import List
-from layer.gridlayer import GridLayer
-from layer.graphlayer import GraphLayer
-from layer.pointlayer import PointLayer
+from ..layer.gridlayer import GridLayer
+from ..layer.graphlayer import GraphLayer
+from ..layer.pointlayer import PointLayer
 import random
 # from alignment import *
 
