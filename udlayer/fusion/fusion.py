@@ -57,7 +57,8 @@ def grid_fusion(
     end_lon=None,
     step_lat=None,
     step_lon=None,
-    mode="stack"
+    mode="stack",
+    user_defined_func=None,
 ):
     """
     Fuse multiple GridLayer into one GridLayer
@@ -71,11 +72,12 @@ def grid_fusion(
         year (int, optional): year of the fused GridLayer. Defaults to None.(use the year of the first GridLayer)
         [start_lat, end_lat, start_lon, end_lon] (float, optional): the range of the fused GridLayer. Defaults to None.(use the range of all GridLayers)
         step_lat, step_lon (float, optional): the step of the fused GridLayer. Defaults to None.(use the minimum step of all GridLayers)
-        mode (str): Mode of fusion. “stack”, “sum”, “avg”, “max”, “min” or “random”. Defaults to “concat”.  
+        mode (str): Mode of fusion. “stack”, “sum”, “avg”, “max”, “min”, “random”, or "user_defined". Defaults to “concat”.  
+        user_defined_func (function, optional): the user defined function for fusion. Defaults to None. The function should take a list of values and return a single value.
     """
     assert isinstance(grid_layer_list, list), "The grid_layer_list is not a list"
     assert len(grid_layer_list) > 0, "The grid_layer_list is empty"
-    assert mode in ["stack", "sum", "avg", "max", "min", "rand"], "The mode is not supported"
+    assert mode in ["stack", "sum", "avg", "max", "min", "rand", "user_defined"], "The mode is not supported"
     if name is None:
         name = grid_layer_list[0].name
     if year is None:
@@ -112,9 +114,12 @@ def grid_fusion(
     else:
         grid_data = np.full(shape=(lat_count, lon_count), fill_value=np.nan)
     grid_data_count = np.full(shape=(lat_count, lon_count), fill_value=0)
-    for grid in grid_layer_list:
-        for i in range(lat_count):
-            for j in range(lon_count):
+    for i in range(lat_count):
+        for j in range(lon_count):
+            if mode == "user_defined":
+                grid_data[i, j] = user_defined_func([grid.data[i, j] for grid in grid_layer_list])
+                continue
+            for grid in grid_layer_list:
                 if np.isnan(grid.data[i,j]):
                     continue
                 if mode !="rand" and np.isnan(grid_data[i,j]):
@@ -122,7 +127,7 @@ def grid_fusion(
                         grid_data[i,j] = np.inf
                     elif mode == "max":
                         grid_data[i,j] = -np.inf
-                    else:
+                    elif mode != "user_defined":
                         grid_data[i,j] = 0
                 if mode == "avg" or mode == "sum":
                     grid_data[i,j] += grid.data[i,j]
