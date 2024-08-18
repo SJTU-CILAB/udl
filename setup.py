@@ -18,7 +18,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="udlayer",
-    version="0.1.0",
+    version="0.2.0",
     packages=setuptools.find_packages(),
     url="https://github.com/SJTU-CILAB/udl",
     license="MIT",

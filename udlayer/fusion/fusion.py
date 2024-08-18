@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import List
+from typing import Callable, List, Optional
 from ..layer.gridlayer import GridLayer
 from ..layer.graphlayer import GraphLayer
 from ..layer.pointlayer import PointLayer
@@ -57,12 +57,12 @@ def grid_fusion(
     end_lon=None,
     step_lat=None,
     step_lon=None,
-    mode="stack",
+    mode="concat",
     user_defined_func=None,
 ):
     """
     Fuse multiple GridLayer into one GridLayer
-    Return a numpy array if mode is "stack"
+    Return a numpy array if mode is "concat"
     else return a GridLayer
 
     Parameters
@@ -72,12 +72,12 @@ def grid_fusion(
         year (int, optional): year of the fused GridLayer. Defaults to None.(use the year of the first GridLayer)
         [start_lat, end_lat, start_lon, end_lon] (float, optional): the range of the fused GridLayer. Defaults to None.(use the range of all GridLayers)
         step_lat, step_lon (float, optional): the step of the fused GridLayer. Defaults to None.(use the minimum step of all GridLayers)
-        mode (str): Mode of fusion. “stack”, “sum”, “avg”, “max”, “min”, “random”, or "user_defined". Defaults to “concat”.  
+        mode (str): Mode of fusion. "concat", "sum", "avg", "max", "min", "random", or "user_defined". Defaults to "concat".  
         user_defined_func (function, optional): the user defined function for fusion. Defaults to None. The function should take a list of values and return a single value.
     """
     assert isinstance(grid_layer_list, list), "The grid_layer_list is not a list"
     assert len(grid_layer_list) > 0, "The grid_layer_list is empty"
-    assert mode in ["stack", "sum", "avg", "max", "min", "rand", "user_defined"], "The mode is not supported"
+    assert mode in ["concat", "sum", "avg", "max", "min", "rand", "user_defined"], "The mode is not supported"
     if name is None:
         name = grid_layer_list[0].name
     if year is None:
@@ -97,7 +97,7 @@ def grid_fusion(
 
     for i in range(len(grid_layer_list)):
         grid_layer_list[i] = grid_align(grid_layer_list[i], start_lat, end_lat, start_lon, end_lon, step_lat, step_lon)
-    if mode == "stack":
+    if mode == "concat":
         if len(grid_layer_list) == 1:
             combine_feature = np.expand_dims(grid_layer_list[0].data, axis=0)
         else:
@@ -156,7 +156,8 @@ def graph_fusion(
         end_lat=None, 
         start_lon=None, 
         end_lon=None, 
-        mode="concat"
+        mode="concat",
+        user_defined_func: Optional[Callable] = None
 ):
     """
     Fuse multiple GraphLayer into one GraphLayer
@@ -164,60 +165,70 @@ def graph_fusion(
     Parameters
     --------------------
         graph_layer_list (list(GraphLayer)): List of graph layers to be fused
-        name (str, optional): name of the fused GraphLayer. Defaults to None.(use the name of the first GraphLayer)
-        year (int, optional): year of the fused GraphLayer. Defaults to None.(use the year of the first GraphLayer)
-        [start_lat, end_lat, start_lon, end_lon] (float, optional): the range of the fused GraphLayer. Defaults to None.(use the range of all GraphLayers)
-        mode (str): Mode of fusion. “concat”, “sum”, “avg”, “max”, “min” or “random”. Defaults to “concat”.  
+        name (str, optional): name of the fused GraphLayer. Defaults to None. (use the name of the first GraphLayer)
+        year (int, optional): year of the fused GraphLayer. Defaults to None. (use the year of the first GraphLayer)
+        [start_lat, end_lat, start_lon, end_lon] (float, optional): the range of the fused GraphLayer. Defaults to None. (use the range of all GraphLayers)
+        mode (str): Mode of fusion. “concat”, “sum”, “avg”, “max”, “min” or “random”. Defaults to “concat”.
+        user_defined_func (Callable, optional): A custom function that processes nodes and edges during their fusion.
     """
-
-    assert isinstance(graph_layer_list, list), "The graph_layer_list is not a list"
-    assert len(graph_layer_list) > 0, "The graph_layer_list is empty"
+    if not graph_layer_list:
+        raise ValueError("The graph_layer_list cannot be empty.")
+    
+    # Use the name and year of the first GraphLayer if not provided
     if name is None:
         name = graph_layer_list[0].name
     if year is None:
         year = graph_layer_list[0].year
-    if column_list is None:
-        column_list = graph_layer_list[0].feature_name
-    if start_lat is None:
-        start_lat = min([min(node[1]["lat"] for node in graph_data.data.nodes) for graph_data in graph_layer_list])
-    if end_lat is None:
-        end_lat = max([max(node[1]["lat"] for node in graph_data.data.nodes) for graph_data in graph_layer_list])
-    if start_lon is None:
-        start_lon = min([min(node[1]["lon"] for node in graph_data.data.nodes) for graph_data in graph_layer_list])
-    if end_lon is None:
-        end_lon = max([max(node[1]["lon"] for node in graph_data.data.nodes) for graph_data in graph_layer_list])
-    fused_graph_data = GraphLayer(name,year)
-    for node in graph_layer_list[0].data.nodes:
-        node_attr = []
-        if len(node[1])>2:
-            node_attr.append(node[1][graph_layer_list[0].name])
-        for graph in graph_layer_list[1:]:
-            for node2 in graph.data.nodes:
-                if node[1]['lat']==node2[1]['lat'] and node[1]['lon']==node2[1]['lon'] and len(node2[1])>2:
-                    node_attr.append(node2[1][graph.name])
-                    break
-        if len(node_attr)!=0:
-            fused_graph_node = fused_graph_data.construct_node(node[0],node[1]['lat'],node[1]['lon'],node_attr)
-            fused_graph_data.add_node(fused_graph_node)
-        else: fused_graph_data.add_node(node)
-    for edge in graph_layer_list[0].data.edges:
-        edge_attr = []
-        if len(edge)>2 :
-            edge_attr.append(edge[2]['edge_attribute'])
-        for graph in graph_layer_list[1:]:
-            for edge2 in graph.data.edges:
-                if (edge[0]==edge2[0] and edge[0]==edge2[0]) or (edge[0]==edge2[1] and edge[1]==edge2[0]):
-                    if len(edge2)>2:
-                        edge_attr.append(edge2[2]['edge_attribute'])
-                        break
-        if len(node_attr)==0:
-            fused_graph_data.add_edge(edge)
-        else:
-            fused_graph_edge = fused_graph_data.construct_edge(edge[0],edge[1],edge_weight=edge_attr)
-            fused_graph_data.add_edge(fused_graph_edge)
-    return fused_graph_data     
-            
-   
+    
+    # Create a new GraphLayer for fusion
+    fused_graph = GraphLayer(name=name, year=year, directed=graph_layer_list[0].directed)
+    
+    node_data = {}
+    
+    # Process each GraphLayer
+    for layer in graph_layer_list:
+        for node, attr in layer.data.nodes(data=True):
+            lat = attr.get("lat")
+            lon = attr.get("lon")
+            if start_lat is not None and (lat < start_lat or lat > end_lat):
+                continue
+            if start_lon is not None and (lon < start_lon or lon > end_lon):
+                continue
+
+            if node not in node_data:
+                node_data[node] = {"lat": lat, "lon": lon, "attributes": {}}
+                for k, v in attr.items():
+                    if k not in ["lat", "lon"]:
+                        node_data[node]["attributes"][k] = [v]
+            else:
+                for k, v in attr.items():
+                    if k in ["lat", "lon"]:
+                        continue
+                    node_data[node]["attributes"][k].append(v)
+
+    # Apply the custom function to each attribute
+    for node, data in node_data.items():
+        for k, v in data["attributes"].items():
+            if user_defined_func:
+                node_data[node][k] = user_defined_func(v)
+            elif mode == "avg":
+                node_data[node][k] = sum(v) / len(v)
+            elif mode == "sum":
+                node_data[node][k] = sum(v)
+            elif mode == "max":
+                node_data[node][k] = max(v)
+            elif mode == "min":
+                node_data[node][k] = min(v)
+            elif mode == "random":
+                node_data[node][k] = random.choice(v)
+        del node_data[node]["attributes"]
+
+    # Add nodes and edges to the fused graph
+    fused_graph.data.add_nodes_from([(node, attr) for node, attr in node_data.items()])
+    fused_graph.data.add_edges_from(graph_layer_list[0].data.edges(data=True))
+
+    return fused_graph
+    
 
 def point_fusion(
     point_layer_list: List[PointLayer],
@@ -228,6 +239,8 @@ def point_fusion(
     end_lat=None,
     start_lon=None,
     end_lon=None,
+    mode="concat",
+    user_defined_func=None
 ):
     """
     Fuse multiple PointLayer into one PointLayer
@@ -239,6 +252,8 @@ def point_fusion(
         year (int, optional): year of the fused PointLayer. Defaults to None.(use the year of the first PointLayer)
         column_list (List[str], optional): the columns to be fused. Defaults to None.(use the columns of the first PointLayer)
         [start_lat, end_lat, start_lon, end_lon] (float, optional): the range of the fused PointLayer. Defaults to None.(use the range of all PointLayers)
+        mode (str): Mode of fusion. "concat", "avg", "sum", "max", "min" or "random". Defaults to "concat".
+        user_defined_func (Callable, optional): A custom function that processes nodes during their fusion
     """
     
     assert isinstance(point_layer_list, list), "The point_layer_list is not a list"
@@ -257,10 +272,83 @@ def point_fusion(
         start_lon = min([min(point_data.data["lon"]) for point_data in point_layer_list])
     if end_lon is None:
         end_lon = max([max(point_data.data["lon"]) for point_data in point_layer_list])
-    fused_point_data = PointLayer(name, year, column_list)
-    for point_data in point_layer_list:
-        fused_point_data.add_points(point_data.get_value_by_range(start_lat, end_lat, start_lon, end_lon, column_list))
-    return fused_point_data
+    # Initialize the fused PointLayer
+    fused_layer = PointLayer(name=name, year=year, column_list=column_list)
+    
+    if mode == "concat":
+        # Start with the first layer's data
+        concatenated_data = point_layer_list[0].data.copy()
+        existing_columns = set(concatenated_data.columns)
+
+        # Iterate over the remaining layers
+        for layer in point_layer_list[1:]:
+            layer_data = layer.data.copy()
+            layer_columns = set(layer_data.columns)
+
+            # Check for duplicate columns
+            duplicate_columns = existing_columns.intersection(layer_columns)
+            if duplicate_columns:
+                print(f"Warning: Duplicate columns found: {duplicate_columns}. Values from the first layer will be used.")
+                # Drop the duplicate columns from the current layer
+                layer_data = layer_data.drop(columns=duplicate_columns)
+
+            # Merge the new columns into the concatenated data
+            concatenated_data = pd.concat([concatenated_data, layer_data], axis=1)
+
+            # Update the existing columns set
+            existing_columns.update(layer_columns)
+
+        # Filter by lat/lon range if specified
+        if start_lat is not None and end_lat is not None:
+            concatenated_data = concatenated_data[(concatenated_data["lat"] >= start_lat) & (concatenated_data["lat"] <= end_lat)]
+        if start_lon is not None and end_lon is not None:
+            concatenated_data = concatenated_data[(concatenated_data["lon"] >= start_lon) & (concatenated_data["lon"] <= end_lon)]
+        
+        fused_layer.add_points(concatenated_data.reset_index(drop=True))
+        return fused_layer
+
+    # For other modes: avg, sum, max, min, random
+    fused_data = []
+
+    # Combine all data frames into one for easier group by operation
+    combined_data = pd.concat([layer.data for layer in point_layer_list], ignore_index=True)
+    
+    # Filter by lat/lon range if specified
+    if start_lat is not None and end_lat is not None:
+        combined_data = combined_data[(combined_data["lat"] >= start_lat) & (combined_data["lat"] <= end_lat)]
+    if start_lon is not None and end_lon is not None:
+        combined_data = combined_data[(combined_data["lon"] >= start_lon) & (combined_data["lon"] <= end_lon)]
+    
+    # Group by lat/lon and fuse the data according to the specified mode
+    for (lat, lon), group in combined_data.groupby(["lat", "lon"]):
+        fused_row = {"lat": lat, "lon": lon}
+        
+        for col in column_list:
+            values = group[col].values
+            if user_defined_func:
+                fused_row[col] = user_defined_func(values)
+            else:
+                if mode == "avg":
+                    fused_row[col] = values.mean()
+                elif mode == "sum":
+                    fused_row[col] = values.sum()
+                elif mode == "max":
+                    fused_row[col] = values.max()
+                elif mode == "min":
+                    fused_row[col] = values.min()
+                elif mode == "random":
+                    fused_row[col] = random.choice(values)
+
+        fused_data.append(fused_row)
+    
+    # Create a DataFrame from the fused data
+    fused_data = pd.DataFrame(fused_data)
+
+    # Add the fused data to the new PointLayer
+    fused_layer.add_points(fused_data)
+
+    return fused_layer
+
 
 def grid_point_fusion(
     grid_layer_list: List[GridLayer],
