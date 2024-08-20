@@ -1,6 +1,6 @@
 import shapefile
 import random
-from datalayer import *
+from udlayer.layer import *
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
@@ -65,6 +65,7 @@ for point in new_points:
             points_in_sf.append(point)
             break
 points_in_sf=pd.DataFrame(points_in_sf, columns=['longitude','latitude'])#.to_csv(name+'pois.csv',index=False)
+points_in_sf.dropna(inplace=True)
 #points=pd.read_csv('NewYorkStatepois.csv')
 # name="NewYorkStateGauss_inter"
 #points = points.data.loc[:, ['lat', 'lon']]
